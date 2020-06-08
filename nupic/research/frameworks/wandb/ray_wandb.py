@@ -19,6 +19,7 @@
 # http://numenta.org/licenses/
 # ----------------------------------------------------------------------
 
+import ast
 import json
 import numbers
 import os
@@ -129,10 +130,10 @@ class WandbLogger(wandb.ray.WandbLogger):
     )
     ```
 
-    The "result_to_time_series_fn" is a function that takes a result and returns
-    a dictionary of {timestep: result}. If you provide this function, you
-    convert from an epoch-based time series to your own timestep-based time
-    series, logging a multiple timesteps for each epoch.
+    The "result_to_time_series_fn" is a function that takes a result and config
+    and returns a dictionary of {timestep: result}. If you provide this
+    function, you convert from an epoch-based time series to your own
+    timestep-based time series, logging multiple timesteps for each epoch.
 
     Note, as a `ray.tune.logger.Logger` this class will process all results returned
     from training. However, as of now, only numbers get synced to wandb (e.g. {acc: 1}).
@@ -179,8 +180,9 @@ class WandbLogger(wandb.ray.WandbLogger):
 
     def on_result(self, result):
         """
-        The following is copied from the parent class; however, the config values are
-        saved as the repr's so that they are all yaml serializable. See for details:
+        The following is copied from the parent class; however, non-serializable
+        config values are saved as the repr's so that they are all yaml
+        serializable. See for details:
             - https://github.com/wandb/client/issues/586
         """
 
@@ -188,7 +190,13 @@ class WandbLogger(wandb.ray.WandbLogger):
         if config and self._config is None:
             for k in config.keys():
                 if wandb.config.get(k) is None:
-                    wandb.config[k] = repr(config[k])
+                    s = repr(config[k])
+                    try:
+                        ast.literal_eval(s)
+                        wandb.config[k] = config[k]
+                    except (ValueError, SyntaxError):
+                        # Non-serializable
+                        wandb.config[k] = s
             self._config = config
 
         tmp = result.copy()
@@ -197,7 +205,8 @@ class WandbLogger(wandb.ray.WandbLogger):
                 del tmp[k]
 
         if self.result_to_time_series_fn is not None:
-            time_series_dict = self.result_to_time_series_fn(tmp)
+            assert self._config is not None
+            time_series_dict = self.result_to_time_series_fn(tmp, self._config)
             for t, d in sorted(time_series_dict.items(), key=lambda x: x[0]):
                 metrics = {}
                 for key, value in flatten_dict(d, delimiter="/").items():
