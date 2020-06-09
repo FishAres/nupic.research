@@ -23,6 +23,7 @@ import logging
 import os
 import tempfile
 import time
+from functools import partial
 
 import numpy as np
 import torch
@@ -30,7 +31,8 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 from torchvision import transforms
 
-from exp_lesparse import LeSparseNet  # temporary LeSparseNet for experimentation
+from exp_lesparse import LeSparseNet
+from nupic.research.frameworks.continuous_learning.k_winners import new_epoch, per_epoch
 from nupic.research.frameworks.continuous_learning.utils import train_model
 from nupic.research.frameworks.pytorch.dataset_utils import PreprocessedDataset
 from nupic.research.frameworks.pytorch.model_utils import (
@@ -117,6 +119,30 @@ class ContinuousSpeechExperiment(object):
                     "consolidated_sparse_weights", False),
                 use_kwinners_local=config.get("use_kwinner_local", False),
             )
+
+        elif self.model_type == "fb_CNN":  # not yet finalized
+            model = FBNet(input_shape=config.get("input_shape", (1, 32, 32)),
+                          cnn_out_channels=config["cnn_out_channels"],
+                          cnn_pct_on=config["cnn_percent_on"],
+                          cnn_weight_sparsity=config["cnn_weight_sparsity"],
+                          linear_n=config["linear_n"],
+                          linear_pct_on=config["linear_percent_on"],
+                          linear_weight_sparsity=config["weight_sparsity"],
+                          num_classes=self.num_classes,
+                          boost_strength=config["boost_strength"],
+                          boost_strength_factor=config["boost_strength_factor"],
+                          duty_cycle_period=config["duty_cycle_period"],
+                          k_inference_factor=config["k_inference_factor"],
+                          use_batch_norm=config["use_batch_norm"],
+                          dropout=config.get("dropout", 0.0),
+                          activation_fct_before_max_pool=config.get(
+                "activation_fct_before_max_pool", False),
+                consolidated_sparse_weights=config.get(
+                "consolidated_sparse_weights", False),
+                use_kwinners_local=config.get(
+                "use_kwinner_local", False),
+            )
+            self.combine_xy = True
 
         else:
             raise RuntimeError("Unknown model type: " + self.model_type)
@@ -268,7 +294,12 @@ class ContinuousSpeechExperiment(object):
         self.update_accuracy()
         f.close()
 
+    def boost_per_epoch(self, bpe):
+        partial_boost = partial(per_epoch, bpe)
+        self.model.apply(partial_boost)
+
     def post_epoch(self):
+        self.model.apply(new_epoch)
         self.model.apply(rezero_weights)
         self.lr_scheduler.step()
         self.train_loader.dataset.load_next()
@@ -298,7 +329,8 @@ class ContinuousSpeechExperiment(object):
         else:
             loader = self.validation_loader
 
-        ret = evaluate_model(self.model, loader, self.device)
+        ret = evaluate_model(self.model, loader, self.device,
+                             combine_data=self.combine_xy)
         ret["mean_accuracy"] = 100.0 * ret["mean_accuracy"]
 
         entropy = self.entropy()
@@ -407,8 +439,7 @@ class ContinuousSpeechExperiment(object):
         data_loader = DataLoader(
             dataset,
             batch_size=self.batch_size,
-            shuffle=True,
-            drop_last=True,
+            shuffle=True
         )
         f.flush()
 
@@ -436,8 +467,7 @@ class ContinuousSpeechExperiment(object):
             qualifiers=[""],
         )
         self.validation_loader = DataLoader(
-            validation_dataset, batch_size=self.batch_size, shuffle=False,
-            drop_last=True,
+            validation_dataset, batch_size=self.batch_size, shuffle=False
         )
 
         self.gen_test_dataset = PreprocessedDataset(
@@ -448,8 +478,7 @@ class ContinuousSpeechExperiment(object):
         )
 
         self.gen_test_loader = DataLoader(
-            self.gen_test_dataset, batch_size=self.batch_size, shuffle=True,
-            drop_last=True,
+            self.gen_test_dataset, batch_size=self.batch_size, shuffle=True
         )
 
         self.train_dataset = PreprocessedDataset(
@@ -460,8 +489,7 @@ class ContinuousSpeechExperiment(object):
         )
 
         self.full_train_loader = DataLoader(
-            self.train_dataset, batch_size=self.batch_size, shuffle=True,
-            drop_last=True,
+            self.train_dataset, batch_size=self.batch_size, shuffle=True
         )
 
         self.test_loader = []
@@ -475,8 +503,7 @@ class ContinuousSpeechExperiment(object):
             )
 
             self.test_loader.append(DataLoader(
-                test_dataset, batch_size=self.batch_size, shuffle=False,
-                drop_last=True,
+                test_dataset, batch_size=self.batch_size, shuffle=False
             ))
 
 
