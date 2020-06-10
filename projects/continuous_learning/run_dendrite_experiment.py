@@ -38,6 +38,7 @@ with open(config_file) as cf:
 
 exp = "sparseCNN2"
 
+#  play with the config values here
 config = config_init[exp]
 config["name"] = exp
 config["use_dendrites"] = True
@@ -47,7 +48,13 @@ config["cnn_percent_on"] = (0.12, 0.07)
 config["cnn_weight_sparsity"] = (0.15, 0.05)
 config["dendrites_per_cell"] = 2
 config["batch_size"] = 64
-experiment = ContinuousSpeechExperiment(config=config)
+
+
+def get_experiment():
+    """ The experiment class here is
+    just to easily access the DataLoaders """
+    experiment = ContinuousSpeechExperiment(config=config)
+    return experiment
 
 
 def get_no_params(model):
@@ -63,27 +70,38 @@ def clear_labels(labels, n_classes=5):
 
 
 class ToyNetwork(nn.Module):
-    def __init__(self, dpc=3,
-                 cnn_w_sparsity=0.05,
-                 linear_w_sparsity=0.5,
-                 cat_w_sparsity=0.01,
-                 n_classes=4):
+    """ Toy network; here dpc is dendrites_per_neuron """
+    def __init__(
+        self,
+        dpc=3,
+        cnn_w_sparsity=0.05,
+        linear_w_sparsity=0.5,
+        cat_w_sparsity=0.01,
+        n_classes=4,
+    ):
         super(ToyNetwork, self).__init__()
         conv_channels = 128
         self.n_classes = n_classes
-        self.conv1 = SparseWeights2d(nn.Conv2d(in_channels=1,
-                                               out_channels=conv_channels,
-                                               kernel_size=10,
-                                               padding=0,
-                                               stride=1,), cnn_w_sparsity)
+        self.conv1 = SparseWeights2d(
+            nn.Conv2d(
+                in_channels=1,
+                out_channels=conv_channels,
+                kernel_size=10,
+                padding=0,
+                stride=1,
+            ),
+            cnn_w_sparsity,
+        )
         self.kwin1 = KWinners2d(conv_channels, percent_on=0.1)
         self.bn = nn.BatchNorm2d(conv_channels, affine=False)
         self.mp1 = nn.MaxPool2d(kernel_size=2)
         self.flatten = Flatten()
 
-        self.d1 = DendriteLayer(in_dim=int(conv_channels / 64) * 7744,
-                                out_dim=1000,
-                                dendrites_per_neuron=dpc)
+        self.d1 = DendriteLayer(
+            in_dim=int(conv_channels / 64) * 7744,
+            out_dim=1000,
+            dendrites_per_neuron=dpc,
+        )
 
         self.linear = SparseWeights(nn.Linear(1000, n_classes + 1), linear_w_sparsity)
 
@@ -105,8 +123,9 @@ class ToyNetwork(nn.Module):
 
 
 def train_full(categorical=False):
-    net = ToyNetwork(dpc=1, cnn_w_sparsity=0.1,).cuda()
-    opt = torch.optim.SGD(net.parameters(), lr=0.1,)  # weight_decay=0.)
+    experiment = get_experiment()
+    net = ToyNetwork(dpc=1, cnn_w_sparsity=0.1).cuda()
+    opt = torch.optim.SGD(net.parameters(), lr=0.1)  # weight_decay=0.)
     criterion = F.nll_loss
 
     loader = experiment.full_train_loader
@@ -120,30 +139,34 @@ def train_full(categorical=False):
         loss.backward()
         opt.step()
 
-    acc_ = evaluate_model(net, experiment.gen_test_loader,
-                          torch.device("cuda"))["mean_accuracy"]
-    print(np.round(acc_, 2))
+    acc_ = evaluate_model(net, experiment.gen_test_loader, torch.device("cuda"))[
+        "mean_accuracy"
+    ]
+    print("Accuracy: {}".format(np.round(acc_, 2)))
     return acc_
 
 
-def train_sequential(categorical=False,
-                     dpc=1,
-                     cnn_weight_sparsity=0.1,
-                     linear_w_sparsity=0.5,
-                     cat_w_sparsity=0.01,
-                     optim="Adam",
-                     ):
+def train_sequential(
+    categorical=False,
+    dpc=1,
+    cnn_weight_sparsity=0.1,
+    linear_w_sparsity=0.5,
+    cat_w_sparsity=0.01,
+    optim="Adam",
+):
+    experiment = get_experiment()
 
-    net = ToyNetwork(dpc=dpc,
-                     cnn_w_sparsity=cnn_weight_sparsity,
-                     linear_w_sparsity=linear_w_sparsity,
-                     cat_w_sparsity=cat_w_sparsity
-                     ).cuda()
+    net = ToyNetwork(
+        dpc=dpc,
+        cnn_w_sparsity=cnn_weight_sparsity,
+        linear_w_sparsity=linear_w_sparsity,
+        cat_w_sparsity=cat_w_sparsity,
+    ).cuda()
 
     if optim == "Adam":
-        opt = torch.optim.Adam(net.parameters(), lr=0.1, weight_decay=0.)
+        opt = torch.optim.Adam(net.parameters(), lr=0.1, weight_decay=0.0)
     else:
-        opt = torch.optim.SGD(net.parameters(), lr=0.1, weight_decay=0.)
+        opt = torch.optim.SGD(net.parameters(), lr=0.1, weight_decay=0.0)
 
     criterion = F.nll_loss
 
@@ -163,26 +186,36 @@ def train_sequential(categorical=False,
             loss.backward()
             losses.append(loss.detach().cpu().numpy())
 
-            freeze_output_layer(net, clear_labels(train_inds),
-                                layer_type="kwinner", linear_number="")
+            freeze_output_layer(
+                net, clear_labels(train_inds), layer_type="kwinner", linear_number=""
+            )
 
             opt.step()
-        acc_ = [np.round(evaluate_model(net,
-                                        experiment.test_loader[k],
-                                        torch.device("cuda"))["mean_accuracy"],
-                         2)
-                for k in train_inds[i]]
+        acc_ = [
+            np.round(
+                evaluate_model(net, experiment.test_loader[k], torch.device("cuda"))[
+                    "mean_accuracy"
+                ],
+                2,
+            )
+            for k in train_inds[i]
+        ]
         print(acc_)
 
-    full_acc = [np.round(evaluate_model(net,
-                                        experiment.test_loader[k],
-                                        torch.device("cuda"))["mean_accuracy"],
-                         2)
-                for k in train_inds.flatten()]
+    full_acc = [
+        np.round(
+            evaluate_model(net, experiment.test_loader[k], torch.device("cuda"))[
+                "mean_accuracy"
+            ],
+            2,
+        )
+        for k in train_inds.flatten()
+    ]
 
     print("Categorical: {}, acc={}".format(categorical, full_acc))
     return full_acc
 
 
-train_sequential(categorical=False, dpc=2, cat_w_sparsity=0.1)
-train_sequential(categorical=True, dpc=2, cat_w_sparsity=0.1)
+if __name__ == "__main__":
+    train_sequential(categorical=False, dpc=2, cat_w_sparsity=0.1)
+    train_sequential(categorical=True, dpc=2, cat_w_sparsity=0.1)
