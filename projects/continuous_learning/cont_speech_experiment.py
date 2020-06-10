@@ -31,15 +31,11 @@ from torch.utils.data import DataLoader
 from torchvision import transforms
 
 from exp_lesparse import LeSparseNet  # temporary LeSparseNet for experimentation
-<<<<<<< HEAD
 from nupic.research.frameworks.continuous_learning.utils import (
     train_model,
     freeze_grads,
     split_inds,
 )
-=======
-from nupic.research.frameworks.continuous_learning.utils import train_model
->>>>>>> 846da13a313cab3b24e8ec862bc3b9be603edd5f
 from nupic.research.frameworks.pytorch.dataset_utils import PreprocessedDataset
 from nupic.research.frameworks.pytorch.model_utils import (
     count_nonzero_params,
