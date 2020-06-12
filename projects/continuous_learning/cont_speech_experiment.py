@@ -32,9 +32,9 @@ from torchvision import transforms
 
 from exp_lesparse import LeSparseNet  # temporary LeSparseNet for experimentation
 from nupic.research.frameworks.continuous_learning.utils import (
-    train_model,
     freeze_grads,
     split_inds,
+    train_model,
 )
 from nupic.research.frameworks.pytorch.dataset_utils import PreprocessedDataset
 from nupic.research.frameworks.pytorch.model_utils import (
@@ -371,8 +371,8 @@ class ContinuousSpeechExperiment(object):
             m, n = acc.shape
             acc_ = np.full((m, n), np.nan)
             for ind in np.arange(m):
-                acc_[: m - ind, 1 + shift * ind: 1 + shift * (ind + 1)] = acc[
-                    ind:, 1 + shift * ind: 1 + shift * (ind + 1)
+                acc_[: m - ind, 1 + shift * ind : 1 + shift * (ind + 1)] = acc[
+                    ind:, 1 + shift * ind : 1 + shift * (ind + 1)
                 ]
             return acc_
 

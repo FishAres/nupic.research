@@ -164,7 +164,7 @@ class DendriteLayer(nn.Module):
         for a categorical "feedback" projection to
         the dendrite segments
         """
-        if self.act_fun_type is None:
+        if self.act_fun_type == "kwinner":
             return self.forward_kwinner(x, cat_projection)
         else:
             return self.forward_sigmoid(x, cat_projection)
