@@ -19,15 +19,16 @@
 # http://numenta.org/licenses/
 # ----------------------------------------------------------------------
 
+from copy import deepcopy
 import numpy as np
 import torch
 import torch.nn.functional as F
 from torch import nn
 
 from nupic.research.frameworks.continuous_learning.dend_kwinners import (
-    DendriteKWinners2d,
+    DendriteKWinners2dLocal,
 )
-from nupic.torch.modules import SparseWeights
+from nupic.torch.modules import SparseWeights, KWinners
 
 
 class DendriteInput(nn.Module):
@@ -62,8 +63,8 @@ class DendriteInput(nn.Module):
         else:
             self.linear = linear
 
-    def dendrite_activation(self, x):
-        return torch.clamp(x, min=self.threshold)
+    # def dendrite_activation(self, x):
+    #     return torch.clamp(x, min=self.threshold)
 
     def forward(self, x):
         """ Note this only returns the linear output """
@@ -87,7 +88,7 @@ class DendriteOutput(nn.Module):
         self.register_buffer("mask", self.dend_mask(out_dim))
         self.weight = torch.nn.Parameter(torch.Tensor(out_dim,
                                                       dendrites_per_unit * out_dim))
-        self.bias = torch.nn.Parameter(torch.Tensor(out_dim))
+        self.bias = torch.nn.Parameter(torch.Tensor(out_dim), requires_grad=True)
         # for stability - will integrate separate weight init. later
         nn.init.kaiming_uniform_(self.weight)
         self.bias.data.fill_(0.)
@@ -113,19 +114,15 @@ class DendriteLayer(nn.Module):
     activation function for the dendrite units
     (in this case a Kwinners2DLocal).
 
-    The parameters k_inference_factor through
-    duty_cycle_period are parameters for the KWinner2D
-    activation. See 'nupic.torch.modules.k_winners'
-    Note that "percent_on" will be overwritten in the
-    KWinner2D module to specify k=1.
-
     :param in_dim: input dimension for DendriteInput
 
     :param out_dim: output dimension for DendriteOutput
 
     :param dendrites_per_neuron: dendrites per downstream unit
 
+    :param weight_sparsity: DOC
 
+    :param act_fun_type
     """
 
     def __init__(self,
@@ -133,7 +130,7 @@ class DendriteLayer(nn.Module):
                  out_dim,
                  dendrites_per_neuron,
                  weight_sparsity=0.2,
-                 act_fun_type=None,
+                 act_fun_type="kwinner",
                  ):
         super(DendriteLayer, self).__init__()
 
@@ -150,16 +147,7 @@ class DendriteLayer(nn.Module):
         )
         self.output = DendriteOutput(out_dim, self.dendrites_per_neuron)
 
-        if self.act_fun_type == "kwinner":
-            self.act_fun = DendriteKWinners2d(
-                channels=self.out_dim,
-                k=1,
-                local=True,
-            )
-        else:
-            self.act_fun = torch.sigmoid
-
-    def forward(self, x, cat_projection=None):
+    def forward(self, x, cat_projection=1.0):
         """ cat_proj here is an optional argument
         for a categorical "feedback" projection to
         the dendrite segments
@@ -169,33 +157,105 @@ class DendriteLayer(nn.Module):
         else:
             return self.forward_sigmoid(x, cat_projection)
 
-    def forward_kwinner(self, x, cat_projection=None):
+    def forward_kwinner(self, x, cat_projection=1.0):  # cat_projection = 1.0 is cleaner 
+        """ cat_projection is scalar categorical input
+        """
         batch_size = x.shape[0]
         out0 = self.input(x)
 
-        if cat_projection is not None:
-            out0 = out0 * cat_projection
+        out0 = out0 * cat_projection  # will be identity without categorical projection
+        # if statements introduce bug potential and are slower on GPU
 
         with torch.no_grad():
-            out0 = out0.reshape(batch_size, self.dendrites_per_neuron, self.out_dim, 1)
+            out0_ = out0.reshape(batch_size, self.out_dim, self.dendrites_per_neuron)
 
-        out1 = self.act_fun(out0)
-
+        out1 = DendriteKWinners2dLocal.apply(out0_, 1)
         with torch.no_grad():
             out1_ = torch.squeeze(out1)
-        out1_ = out1_.reshape(batch_size, self.out_dim * self.dendrites_per_neuron)
 
-        out2 = self.output(out1_)
+        out1_1 = out1_.reshape(batch_size, self.out_dim * self.dendrites_per_neuron)
+
+        out2 = self.output(out1_1)
         return out2
 
-    def forward_sigmoid(self, x, cat_projection=None):
+    def forward_sigmoid(self, x, cat_projection=1.0):
         out0 = self.input(x)
-        if cat_projection is not None:
-            out1_pre = out0 * cat_projection
-        else:
-            out1_pre = out0
 
-        out1 = self.act_fun(out1_pre)
+        out1_pre = out0 * cat_projection
+
+        out1 = torch.sigmoid(out1_pre)
 
         out2 = self.output(out1)
         return out2
+
+
+
+
+
+
+
+
+
+
+
+class StackedDendriteOutput(nn.Module):
+    def __init__(
+        self,
+        out_dim,
+        dendrites_per_unit,
+        bias=True,
+    ):
+        super(StackedDendriteOutput, self).__init__()
+
+        self.dendrites_per_unit = dendrites_per_unit
+
+        self.linear_layer = nn.ModuleList(
+            [
+                deepcopy(nn.Linear(dendrites_per_unit, 1, bias=bias))
+                for _ in range(out_dim)
+            ]
+        )
+
+    def forward(self, x):
+        x = x.unfold(-1, size=self.dendrites_per_unit, step=self.dendrites_per_unit)
+        fold_num = x.shape[1]
+        x = torch.cat([self.linear_layer[i](x[:, i, :]) for i in range(fold_num)], 1)
+        return x
+
+
+class StackedDendriteLayer(nn.Module):
+    def __init__(
+        self,
+        in_dim,
+        out_dim,
+        dendrites_per_unit,
+        input_sparsity,
+        percent_on=0.1,
+        boost_strength=1,
+        boost_strength_factor=0.9,
+        duty_cycle_period=1000,
+    ):
+        super(StackedDendriteLayer, self).__init__()
+
+        self.no_dendrites = out_dim * dendrites_per_unit
+        self.input_layer = SparseWeights(nn.Linear(in_dim, self.no_dendrites), input_sparsity)
+
+        self.output_layer = StackedDendriteOutput(
+            out_dim=out_dim,
+            dendrites_per_unit=dendrites_per_unit,
+            bias=True,
+        )
+
+        self.act_fun = KWinners(
+            n=out_dim,
+            percent_on=percent_on,
+            boost_strength=boost_strength,
+            boost_strength_factor=boost_strength_factor,
+            duty_cycle_period=duty_cycle_period,
+        )
+
+    def forward(self, x):
+        x = self.input_layer(x)
+        x = self.output_layer(x)
+        x = self.act_fun(x)
+        return x   

@@ -109,16 +109,18 @@ class DendriteKWinners2d(DKWinnersBase):
 
 
 class DendriteKWinners2dLocal(torch.autograd.Function):
+    """ x needs to be shaped as
+    (batch_size, no. units, dendrites per unit, 1)
+    """
     @staticmethod
     def forward(ctx, x, k):
 
-        batch_size, channels, h, w = x.shape
+        # batch_size, channels, h, w = x.shape
         boosted = x.detach()
 
-        # Select top K channels from the boosted values
-        topk, indices = boosted.topk(k=k, dim=1)
+        topk, indices = boosted.topk(k=k, dim=2)
         res = torch.zeros_like(x)
-        res.scatter_(1, indices, x.gather(1, indices))
+        res.scatter_(2, indices, x.gather(2, indices))
 
         ctx.save_for_backward(indices)
         return res
