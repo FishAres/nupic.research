@@ -100,8 +100,6 @@ class DendriteKWinners2d(DKWinnersBase):
     def forward(self, x):
         if self.n == 0:
             self.n = np.prod(x.shape[1:])
-            if not self.local:
-                self.k = int(round(self.n * self.percent_on))
 
         x = self.kwinner_function(x, self.k)
 
@@ -133,7 +131,7 @@ class DendriteKWinners2dLocal(torch.autograd.Function):
         """
         indices, = ctx.saved_tensors
         grad_x = torch.zeros_like(grad_output, requires_grad=False)
-        grad_x.scatter_(1, indices, grad_output.gather(1, indices))
+        grad_x.scatter_(2, indices, grad_output.gather(2, indices))
         return grad_x, None, None, None, None
 
 

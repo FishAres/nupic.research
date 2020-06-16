@@ -27,6 +27,7 @@ from torch import nn
 
 from nupic.research.frameworks.continuous_learning.dend_kwinners import (
     DendriteKWinners2dLocal,
+    DendriteKWinners2d,
 )
 from nupic.torch.modules import SparseWeights, KWinners
 
@@ -162,16 +163,17 @@ class DendriteLayer(nn.Module):
         """
         batch_size = x.shape[0]
         out0 = self.input(x)
+        
 
         out0 = out0 * cat_projection  # will be identity without categorical projection
         # if statements introduce bug potential and are slower on GPU
+        # with torch.no_grad():
+        out0_ = out0.reshape(batch_size, self.out_dim, self.dendrites_per_neuron)
 
-        with torch.no_grad():
-            out0_ = out0.reshape(batch_size, self.out_dim, self.dendrites_per_neuron)
-
-        out1 = DendriteKWinners2dLocal.apply(out0_, 1)
-        with torch.no_grad():
-            out1_ = torch.squeeze(out1)
+        
+        out1_ = DendriteKWinners2dLocal.apply(out0_, 1)
+        # with torch.no_grad():
+        #     out1_ = torch.squeeze(out1)
 
         out1_1 = out1_.reshape(batch_size, self.out_dim * self.dendrites_per_neuron)
 
