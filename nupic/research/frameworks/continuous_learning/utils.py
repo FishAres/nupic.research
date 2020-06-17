@@ -147,7 +147,7 @@ def train_model(
     t0 = time.time()
 
     if sample_fraction is not None:
-        num_batches = int(loader.dataset.tensors[1].shape[0] / loader.batch_size)
+        num_batches = int(loader.dataset.targets.shape[0] / loader.batch_size)
         max_batch_idx = int(sample_fraction * num_batches)
     else:
         max_batch_idx = batches_in_epoch

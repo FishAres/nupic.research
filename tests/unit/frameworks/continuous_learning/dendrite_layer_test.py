@@ -22,17 +22,13 @@ import unittest
 
 import torch
 import torch.nn.functional as F
-from torch.testing import assert_allclose
 from torch.autograd import gradcheck
 
-from nupic.research.frameworks.continuous_learning.dendrite_layers import (
-    DendriteOutput,
-)
-
 from nupic.research.frameworks.continuous_learning.dend_kwinners import (
-    DendriteKWinners2dLocal,
     DendriteKWinners2d,
+    DendriteKWinners2dLocal,
 )
+from nupic.research.frameworks.continuous_learning.dendrite_layers import DendriteOutput
 
 
 class DendKWinnerTest(unittest.TestCase):
@@ -51,11 +47,11 @@ class DendKWinnerTest(unittest.TestCase):
 
         result = f.apply(x, 1)
 
-        expected_ = x.reshape(b*c, h)
+        expected_ = x.reshape(b * c, h)
         # these should be (absolute) the k=1 values
         expected = expected_.max(dim=1).values.abs()
 
-        result_ = result.reshape(b*c, h)
+        result_ = result.reshape(b * c, h)
         result_ = result_.abs().max(dim=1).values
 
         num_correct = (result_ == expected).sum()
@@ -68,37 +64,35 @@ class DendKWinnerTest(unittest.TestCase):
         x = self.x.requires_grad_(True).double()  # needs to be double precision
         b, c, h, w = x.shape
 
-        F = DendriteKWinners2d(c, k=1)  # test needs module, not function
+        kw = DendriteKWinners2d(c, k=1)  # test needs module, not function
 
-        self.assertTrue(gradcheck(F, x))
-        
+        self.assertTrue(gradcheck(kw, x))
 
     def test_dend_output_grad_inds(self):
         """
         Make sure the gradients fall where they have to
         """
 
-        D = DendriteOutput(out_dim=10,
-                       dendrites_per_unit=3)
+        dend_output = DendriteOutput(out_dim=10, dendrites_per_unit=3)
 
         x = torch.randn(8, 30)
         target = torch.randn(8,).long()
 
         loss_fn = F.cross_entropy
 
-        loss = loss_fn(D(x), target)
+        loss = loss_fn(dend_output(x), target)
         loss.backward()
 
-        w = D.weight.grad.detach()
+        w = dend_output.weight.grad.detach()
         w[w.abs() > 0] = 1.0  # set all gradients to 1
 
         # sum over gradient rows and check it's == 30
         sum_ = 0
         for k in range(w.shape[0]):
-            sum_ += w[k,:].sum()
-        
+            sum_ += w[k, :].sum()
+
         self.assertEqual(sum_, 30)
+
 
 if __name__ == "__main__":
     unittest.main()
-    

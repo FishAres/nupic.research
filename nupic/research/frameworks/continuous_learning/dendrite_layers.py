@@ -164,11 +164,9 @@ class DendriteLayer(nn.Module):
         batch_size = x.shape[0]
         out0 = self.input(x)
         
-
         out0 = out0 * cat_projection  # will be identity without categorical projection
         # if statements introduce bug potential and are slower on GPU
         out0_ = out0.reshape(batch_size, self.out_dim, self.dendrites_per_neuron)
-
         
         out1_ = DendriteKWinners2dLocal.apply(out0_, 1)
 
