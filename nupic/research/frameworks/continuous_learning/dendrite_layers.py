@@ -167,13 +167,10 @@ class DendriteLayer(nn.Module):
 
         out0 = out0 * cat_projection  # will be identity without categorical projection
         # if statements introduce bug potential and are slower on GPU
-        # with torch.no_grad():
         out0_ = out0.reshape(batch_size, self.out_dim, self.dendrites_per_neuron)
 
         
         out1_ = DendriteKWinners2dLocal.apply(out0_, 1)
-        # with torch.no_grad():
-        #     out1_ = torch.squeeze(out1)
 
         out1_1 = out1_.reshape(batch_size, self.out_dim * self.dendrites_per_neuron)
 
@@ -190,74 +187,3 @@ class DendriteLayer(nn.Module):
         out2 = self.output(out1)
         return out2
 
-
-
-
-
-
-
-
-
-
-
-class StackedDendriteOutput(nn.Module):
-    def __init__(
-        self,
-        out_dim,
-        dendrites_per_unit,
-        bias=True,
-    ):
-        super(StackedDendriteOutput, self).__init__()
-
-        self.dendrites_per_unit = dendrites_per_unit
-
-        self.linear_layer = nn.ModuleList(
-            [
-                deepcopy(nn.Linear(dendrites_per_unit, 1, bias=bias))
-                for _ in range(out_dim)
-            ]
-        )
-
-    def forward(self, x):
-        x = x.unfold(-1, size=self.dendrites_per_unit, step=self.dendrites_per_unit)
-        fold_num = x.shape[1]
-        x = torch.cat([self.linear_layer[i](x[:, i, :]) for i in range(fold_num)], 1)
-        return x
-
-
-class StackedDendriteLayer(nn.Module):
-    def __init__(
-        self,
-        in_dim,
-        out_dim,
-        dendrites_per_unit,
-        input_sparsity,
-        percent_on=0.1,
-        boost_strength=1,
-        boost_strength_factor=0.9,
-        duty_cycle_period=1000,
-    ):
-        super(StackedDendriteLayer, self).__init__()
-
-        self.no_dendrites = out_dim * dendrites_per_unit
-        self.input_layer = SparseWeights(nn.Linear(in_dim, self.no_dendrites), input_sparsity)
-
-        self.output_layer = StackedDendriteOutput(
-            out_dim=out_dim,
-            dendrites_per_unit=dendrites_per_unit,
-            bias=True,
-        )
-
-        self.act_fun = KWinners(
-            n=out_dim,
-            percent_on=percent_on,
-            boost_strength=boost_strength,
-            boost_strength_factor=boost_strength_factor,
-            duty_cycle_period=duty_cycle_period,
-        )
-
-    def forward(self, x):
-        x = self.input_layer(x)
-        x = self.output_layer(x)
-        x = self.act_fun(x)
-        return x   
