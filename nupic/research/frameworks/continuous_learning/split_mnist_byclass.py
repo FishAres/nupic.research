@@ -20,16 +20,14 @@
 # ----------------------------------------------------------------------
 
 import os
+
 import numpy as np
 import torch
-from torch.utils.data import DataLoader
 from torchvision import datasets, transforms
 
 
 class MNISTSplitter(object):
-    def __init__(self,
-                 data_dir=None,
-                 ):
+    def __init__(self, data_dir=None):
 
         if data_dir is None:
             data_dir = "/home/ec2-user/nta/data/mnist/"
@@ -38,7 +36,7 @@ class MNISTSplitter(object):
             print("Making directory {}".format(data_dir))
             os.mkdir(data_dir)
 
-        if len(os.listdir(data_dir)) > 0. :
+        if len(os.listdir(data_dir)) > 0.0:
             print("Warning: will delete and replace local files")
             for file_path in os.listdir(data_dir):
                 print(file_path)
@@ -59,8 +57,7 @@ class MNISTSplitter(object):
 
         train_dataset = datasets.MNIST("../mnist_data", download=True, train=True)
 
-        test_dataset = datasets.MNIST(
-            "../mnist_data", download=True, train=False)
+        test_dataset = datasets.MNIST("../mnist_data", download=True, train=False)
 
         return train_dataset, test_dataset
 
@@ -74,24 +71,24 @@ class MNISTSplitter(object):
             # Training data
             y_inds = np.where(ys_train == class_)[0]
             x_class = xs_train[y_inds, :, :]
-            torch.save((x_class, class_ * torch.ones(len(y_inds))),
-                       data_dir + "/mnist_train_{}.npz".format(class_)
-                       )
+            torch.save(
+                (x_class, class_ * torch.ones(len(y_inds))),
+                data_dir + "/mnist_train_{}.npz".format(class_),
+            )
 
             # Test data
             y_inds = np.where(ys_test == class_)[0]
             x_class = xs_test[y_inds, :, :]
-            torch.save((x_class, class_ * torch.ones(len(y_inds))),
-                       data_dir + "/mnist_test_{}.npz".format(class_)
-                       )
+            torch.save(
+                (x_class, class_ * torch.ones(len(y_inds))),
+                data_dir + "/mnist_test_{}.npz".format(class_),
+            )
 
 
 if __name__ == "__main__":
 
     data_dir = "/home/ec2-user/nta/data/mnist/"
-    splitter = MNISTSplitter(
-        data_dir=data_dir,
-    )
+    splitter = MNISTSplitter(data_dir=data_dir)
     print("Splitting... ")
     splitter.split_mnist(data_dir)
     print("Done!")

@@ -31,11 +31,7 @@ from torch.utils.data import DataLoader
 from torchvision import transforms
 
 from exp_lesparse import LeSparseNet  # temporary LeSparseNet for experimentation
-from nupic.research.frameworks.continuous_learning.utils import (
-    freeze_grads,
-    split_inds,
-    train_model,
-)
+from nupic.research.frameworks.continuous_learning.utils import train_model
 from nupic.research.frameworks.pytorch.dataset_utils import PreprocessedDataset
 from nupic.research.frameworks.pytorch.model_utils import (
     count_nonzero_params,
@@ -277,7 +273,6 @@ class ContinuousSpeechExperiment(object):
             freeze_output=freeze_output,
             layer_type=layer_type,
             linear_number=linear_number,
-            # duty_cycles=self.get_duty_cycles(),
             output_indices=output_indices,
             combine_data=self.combine_xy,
             batches_in_epoch=self.batches_in_epoch,
@@ -374,8 +369,8 @@ class ContinuousSpeechExperiment(object):
             m, n = acc.shape
             acc_ = np.full((m, n), np.nan)
             for ind in np.arange(m):
-                acc_[: m - ind, 1 + shift * ind: 1 + shift * (ind + 1)] = acc[
-                    ind:, 1 + shift * ind: 1 + shift * (ind + 1)
+                acc_[: m - ind, 1 + shift * ind : 1 + shift * (ind + 1)] = acc[
+                    ind:, 1 + shift * ind : 1 + shift * (ind + 1)
                 ]
             return acc_
 
@@ -472,10 +467,12 @@ class ContinuousSpeechExperiment(object):
             cachefilepath=self.test_data_dir,
             basename="gsc_test_noise",
             qualifiers=["00"],
-            transform=transforms.Compose([
-                self.subtract_label_transform(),
-                transforms.Normalize(mean=0., std=1.,),
-            ]),
+            transform=transforms.Compose(
+                [
+                    self.subtract_label_transform(),
+                    transforms.Normalize(mean=0.0, std=1.0),
+                ]
+            ),
         )
 
         self.gen_test_loader = DataLoader(
@@ -489,10 +486,12 @@ class ContinuousSpeechExperiment(object):
             cachefilepath=self.test_data_dir,
             basename="gsc_train",
             qualifiers=range(30),
-            transform=transforms.Compose([
-                self.subtract_label_transform(),
-                transforms.Normalize(mean=0., std=1.),
-            ]),
+            transform=transforms.Compose(
+                [
+                    self.subtract_label_transform(),
+                    transforms.Normalize(mean=0.0, std=1.0),
+                ]
+            ),
         )
 
         self.full_train_loader = DataLoader(

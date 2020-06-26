@@ -19,19 +19,31 @@
 # http://numenta.org/licenses/
 # ----------------------------------------------------------------------
 
+import os
+import tempfile
+
 import torch
 from torch.utils.data import DataLoader
 from torchvision import transforms
-import tempfile
-import os
+
 from nupic.research.frameworks.pytorch.dataset_utils import PreprocessedDataset
 
 
-def mnist_byclass_dataset(data_dir="/home/ec2-user/nta/data/mnist",
-                          transforms=transforms.Lambda(
-                              lambda x: (x[0].float(), x[1].long())
-                          ),
-                          batch_size=32):
+def mnist_byclass_dataset(
+    data_dir="/home/ec2-user/nta/data/mnist",
+    transform=None,
+    batch_size=32,
+):
+
+    std_transform = transforms.Lambda(lambda x: (x[0].float(), x[1].long()))
+    if transform is not None:
+        transform = transforms.Compose([
+            std_transform,
+            transform,
+        ])
+
+    else:
+        transform = std_transform
 
     train_loader, test_loader = [], []
     num_classes = 10
@@ -41,15 +53,12 @@ def mnist_byclass_dataset(data_dir="/home/ec2-user/nta/data/mnist",
             cachefilepath=data_dir,
             basename="mnist_train_",
             qualifiers=[class_],
-            transform=transforms,
+            transform=transform,
         )
 
         train_loader.append(
             DataLoader(
-                train_dataset,
-                batch_size=batch_size,
-                shuffle=False,
-                drop_last=True,
+                train_dataset, batch_size=batch_size, shuffle=False, drop_last=True
             )
         )
 
@@ -57,15 +66,12 @@ def mnist_byclass_dataset(data_dir="/home/ec2-user/nta/data/mnist",
             cachefilepath=data_dir,
             basename="mnist_test_",
             qualifiers=[class_],
-            transform=transforms,
+            transform=transform,
         )
 
         test_loader.append(
             DataLoader(
-                test_dataset,
-                batch_size=batch_size,
-                shuffle=False,
-                drop_last=True,
+                test_dataset, batch_size=batch_size, shuffle=False, drop_last=True
             )
         )
 
@@ -89,9 +95,9 @@ def combine_classes(data_dir, training_classes, batch_size=32):
         cachefilepath=os.path.split(f.name)[0],
         basename=os.path.split(f.name)[1],
         qualifiers=["tmp"],
-        transform=transforms.Compose([
-            transforms.Lambda(lambda x: (x[0].float(), x[1].long())),
-        ])
+        transform=transforms.Compose(
+            [transforms.Lambda(lambda x: (x[0].float(), x[1].long()))]
+        ),
     )
 
     data_loader = DataLoader(
