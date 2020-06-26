@@ -371,8 +371,8 @@ class ContinuousSpeechExperiment(object):
             m, n = acc.shape
             acc_ = np.full((m, n), np.nan)
             for ind in np.arange(m):
-                acc_[: m - ind, 1 + shift * ind : 1 + shift * (ind + 1)] = acc[
-                    ind:, 1 + shift * ind : 1 + shift * (ind + 1)
+                acc_[: m - ind, 1 + shift * ind: 1 + shift * (ind + 1)] = acc[
+                    ind:, 1 + shift * ind: 1 + shift * (ind + 1)
                 ]
             return acc_
 
@@ -469,7 +469,10 @@ class ContinuousSpeechExperiment(object):
             cachefilepath=self.test_data_dir,
             basename="gsc_test_noise",
             qualifiers=["00"],
-            transform=self.subtract_label_transform(),
+            transform=transforms.Compose([
+                self.subtract_label_transform(),
+                transforms.Normalize(mean=0., std=1.,),
+            ]),
         )
 
         self.gen_test_loader = DataLoader(
@@ -483,7 +486,10 @@ class ContinuousSpeechExperiment(object):
             cachefilepath=self.test_data_dir,
             basename="gsc_train",
             qualifiers=range(30),
-            transform=self.subtract_label_transform(),
+            transform=transforms.Compose([
+                self.subtract_label_transform(),
+                transforms.Normalize(mean=0., std=1.),
+            ]),
         )
 
         self.full_train_loader = DataLoader(
