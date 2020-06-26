@@ -231,6 +231,7 @@ class ContinuousSpeechExperiment(object):
             combine_data=self.combine_xy,
             freeze_params=fparams,
             batches_in_epoch=self.batches_in_epoch,
+            post_batch_callback=self.post_batch,
         )
 
         self.full_post_epoch()
@@ -280,6 +281,7 @@ class ContinuousSpeechExperiment(object):
             output_indices=output_indices,
             combine_data=self.combine_xy,
             batches_in_epoch=self.batches_in_epoch,
+            post_batch_callback=self.post_batch,
         )
 
         self.post_epoch()
@@ -287,13 +289,14 @@ class ContinuousSpeechExperiment(object):
         self.update_accuracy()
         f.close()
 
-    def post_epoch(self):
+    def post_batch(self, *args, **kwargs):
         self.model.apply(rezero_weights)
+
+    def post_epoch(self):
         self.lr_scheduler.step()
         self.train_loader.dataset.load_next()
 
     def full_post_epoch(self):
-        self.model.apply(rezero_weights)
         self.lr_scheduler.step()
         self.full_train_loader.dataset.load_next()
 
