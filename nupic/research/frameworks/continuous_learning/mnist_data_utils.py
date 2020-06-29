@@ -29,12 +29,17 @@ from torchvision import transforms
 from nupic.research.frameworks.pytorch.dataset_utils import PreprocessedDataset
 
 
-def mnist_byclass_dataset(
+def mnist_classwise_loader(
     data_dir="/home/ec2-user/nta/data/mnist",
     transform=None,
     batch_size=32,
 ):
-
+    """ Create DataLoader instances for the MNIST train and test sets.
+        :param data_dir: Where your MNIST data lives.
+        :param transform: Any transforms you'd like to apply to your data.
+         Defaults to None.
+        :param batch_size: Desired batch_size
+    """
     std_transform = transforms.Lambda(lambda x: (x[0].float(), x[1].long()))
     if transform is not None:
         transform = transforms.Compose([
@@ -78,7 +83,16 @@ def mnist_byclass_dataset(
     return train_loader, test_loader
 
 
-def combine_classes(data_dir, training_classes, batch_size=32):
+def combine_classes(
+        data_dir,
+        training_classes,
+        batch_size=32):
+    """ Create a DataLoader instance with the classes of your choice,
+        for sequential learning.
+        :param data_dir: Where your data live.
+        :param training_classes: the classes you want to combine
+        :type training_classes: iterable (tuple or list)
+    """
     data = []
     for k in training_classes:
         data.append(torch.load(data_dir + "mnist_{}.npz".format(k)))

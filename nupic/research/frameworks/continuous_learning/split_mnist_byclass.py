@@ -23,10 +23,14 @@ import os
 
 import numpy as np
 import torch
-from torchvision import datasets, transforms
+from torchvision import datasets
 
 
 class MNISTSplitter(object):
+    """ Just a simple class for downloading and splitting your MNIST dataset
+        :param data_dir: Where you want the data to live. Defaults to None
+    """
+
     def __init__(self, data_dir=None):
 
         if data_dir is None:
@@ -39,25 +43,25 @@ class MNISTSplitter(object):
         if len(os.listdir(data_dir)) > 0.0:
             print("Warning: will delete and replace local files")
             for file_path in os.listdir(data_dir):
-                print(file_path)
                 try:
-                    os.remove(file_path)
+                    os.remove(os.path.join(data_dir, file_path))
                 except OSError as err:
-                    print("Error {} : {}".format(file_path, err))
+                    print("Error {} : {}".format(os.path.join(data_dir,
+                                                              file_path), err))
 
         self.data_dir = data_dir
         self.num_classes = 10
 
-        if transforms is not None:
-            self.transforms = transforms
-
         self.train_data, self.test_data = self.get_datasets(self.data_dir)
 
     def get_datasets(self, data_dir):
+        """ Get the datasets
+        """
+        train_dataset = datasets.MNIST(data_dir, download=True, train=True)
 
-        train_dataset = datasets.MNIST("../mnist_data", download=True, train=True)
+        test_dataset = datasets.MNIST(data_dir, download=True, train=False)
 
-        test_dataset = datasets.MNIST("../mnist_data", download=True, train=False)
+        print("Saved data to {}".format(data_dir))
 
         return train_dataset, test_dataset
 
