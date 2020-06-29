@@ -86,6 +86,7 @@ def mnist_classwise_loader(
 def combine_classes(
         data_dir,
         training_classes,
+        train=True,
         batch_size=32):
     """ Create a DataLoader instance with the classes of your choice,
         for sequential learning.
@@ -93,9 +94,15 @@ def combine_classes(
         :param training_classes: the classes you want to combine
         :type training_classes: iterable (tuple or list)
     """
+
+    if train:
+        train_string = "train"
+    else:
+        train_string = "test"
+
     data = []
     for k in training_classes:
-        data.append(torch.load(data_dir + "mnist_{}.npz".format(k)))
+        data.append(torch.load(data_dir + "mnist_{}_{}.npz".format(train_string, k)))
 
     samples_ = [data[k][0] for k in range(len(training_classes))]
     labels_ = [data[k][1] for k in range(len(training_classes))]
