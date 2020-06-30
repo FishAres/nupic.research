@@ -33,9 +33,7 @@ from nupic.research.frameworks.continuous_learning.dendrite_layers import Dendri
 
 class DendKWinnerTest(unittest.TestCase):
     def setUp(self):
-        x = torch.randn(3, 2, 4, 1)
-
-        self.x = x
+        self.x = torch.randn(3, 2, 4, 1)
 
     def test_dend_kwinner_max(self):
         """
@@ -76,7 +74,7 @@ class DendKWinnerTest(unittest.TestCase):
         dend_output = DendriteOutput(out_dim=10, dendrites_per_unit=3)
 
         x = torch.randn(8, 30)
-        target = torch.randn(8,).long()
+        target = torch.rand(8,).long()
 
         loss_fn = F.cross_entropy
 

@@ -31,11 +31,7 @@ from torch.utils.data import DataLoader
 from torchvision import transforms
 
 from exp_lesparse import LeSparseNet  # temporary LeSparseNet for experimentation
-from nupic.research.frameworks.continuous_learning.utils import (
-    freeze_grads,
-    split_inds,
-    train_model,
-)
+from nupic.research.frameworks.continuous_learning.utils import train_model
 from nupic.research.frameworks.pytorch.dataset_utils import PreprocessedDataset
 from nupic.research.frameworks.pytorch.model_utils import (
     count_nonzero_params,
@@ -231,6 +227,7 @@ class ContinuousSpeechExperiment(object):
             combine_data=self.combine_xy,
             freeze_params=fparams,
             batches_in_epoch=self.batches_in_epoch,
+            post_batch_callback=self.post_batch,
         )
 
         self.full_post_epoch()
@@ -276,10 +273,10 @@ class ContinuousSpeechExperiment(object):
             freeze_output=freeze_output,
             layer_type=layer_type,
             linear_number=linear_number,
-            # duty_cycles=self.get_duty_cycles(),
             output_indices=output_indices,
             combine_data=self.combine_xy,
             batches_in_epoch=self.batches_in_epoch,
+            post_batch_callback=self.post_batch,
         )
 
         self.post_epoch()
@@ -287,13 +284,14 @@ class ContinuousSpeechExperiment(object):
         self.update_accuracy()
         f.close()
 
-    def post_epoch(self):
+    def post_batch(self, *args, **kwargs):
         self.model.apply(rezero_weights)
+
+    def post_epoch(self):
         self.lr_scheduler.step()
         self.train_loader.dataset.load_next()
 
     def full_post_epoch(self):
-        self.model.apply(rezero_weights)
         self.lr_scheduler.step()
         self.full_train_loader.dataset.load_next()
 
@@ -469,7 +467,12 @@ class ContinuousSpeechExperiment(object):
             cachefilepath=self.test_data_dir,
             basename="gsc_test_noise",
             qualifiers=["00"],
-            transform=self.subtract_label_transform(),
+            transform=transforms.Compose(
+                [
+                    self.subtract_label_transform(),
+                    transforms.Normalize(mean=0.0, std=1.0),
+                ]
+            ),
         )
 
         self.gen_test_loader = DataLoader(
@@ -483,7 +486,12 @@ class ContinuousSpeechExperiment(object):
             cachefilepath=self.test_data_dir,
             basename="gsc_train",
             qualifiers=range(30),
-            transform=self.subtract_label_transform(),
+            transform=transforms.Compose(
+                [
+                    self.subtract_label_transform(),
+                    transforms.Normalize(mean=0.0, std=1.0),
+                ]
+            ),
         )
 
         self.full_train_loader = DataLoader(

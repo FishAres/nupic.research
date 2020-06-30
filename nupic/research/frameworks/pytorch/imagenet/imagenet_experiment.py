@@ -47,7 +47,10 @@ from nupic.research.frameworks.pytorch.imagenet.experiment_utils import (
     get_free_port,
     get_node_ip_address,
 )
-from nupic.research.frameworks.pytorch.imagenet.network_utils import create_model
+from nupic.research.frameworks.pytorch.imagenet.network_utils import (
+    create_model,
+    get_compatible_state_dict,
+)
 from nupic.research.frameworks.pytorch.lr_scheduler import ComposedLRScheduler
 from nupic.research.frameworks.pytorch.model_utils import (
     aggregate_eval_results,
@@ -222,6 +225,7 @@ class ImagenetExperiment:
             self.progress = self.progress and self.rank == 0
 
         # Configure model
+        self.device = config.get("device", self.device)
         self.model = self.create_model(config, self.device)
         if self.rank == 0:
             self.logger.debug(self.model)
@@ -690,6 +694,7 @@ class ImagenetExperiment:
         if "model" in state:
             with io.BytesIO(state["model"]) as buffer:
                 state_dict = deserialize_state_dict(buffer, self.device)
+            state_dict = get_compatible_state_dict(self.model.module, state_dict)
             self.model.module.load_state_dict(state_dict)
 
         if "optimizer" in state:
