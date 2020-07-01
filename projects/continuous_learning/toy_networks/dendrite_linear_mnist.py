@@ -98,7 +98,7 @@ class ToyNetwork(nn.Module):
     def forward(self, x, y=None):
         x = self.flatten(x)
         if y is not None:
-            yhat = torch.eye(self.num_classes)[y].cuda()
+            yhat = torch.eye(self.num_classes)[y]
 
             ypred0 = self.cat_output(self.cat_layer_0(yhat))
             x = self.d1(x, ypred0)

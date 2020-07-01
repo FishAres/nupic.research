@@ -291,7 +291,10 @@ def freeze_output_layer(model, indices, layer_type="dense", linear_number=2):
                 .fill_(0.0)
                 for index in indices
             ]
-
+    elif layer_type == "dendrite":
+        with torch.no_grad():
+            [model.dend_output.output.weight.grad.data[index, :].fill_(0.0) for index in indices]
+            [model.dend_output.output.bias.grad.data[index].fill_(0.0) for index in indices] 
     else:
         raise AssertionError("layer_type must be ''dense'' or ''kwinner''")
 
