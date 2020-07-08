@@ -24,15 +24,13 @@ import tempfile
 
 import torch
 from torch.utils.data import DataLoader
-from torchvision import transforms
+from torchvision import datasets, transforms
 
 from nupic.research.frameworks.pytorch.dataset_utils import PreprocessedDataset
 
 
 def mnist_classwise_loader(
-    data_dir="/home/ec2-user/nta/data/mnist",
-    transform=None,
-    batch_size=64,
+    data_dir="/home/ec2-user/nta/data/mnist", transform=None, batch_size=64,
 ):
     """ Create DataLoader instances for the MNIST train and test sets.
         :param data_dir: Where your MNIST data lives.
@@ -40,12 +38,15 @@ def mnist_classwise_loader(
          Defaults to None.
         :param batch_size: Desired batch_size. Default is 64
     """
-    std_transform = transforms.Lambda(lambda x: (x[0].float(), x[1].long()))
+    std_transform = transforms.Compose(
+        [
+            transforms.Lambda(lambda x: (x[0].float(), x[1].long())),
+            transforms.Lambda(lambda x: (x[0].unsqueeze(0), x[1])),
+        ]
+    )
+
     if transform is not None:
-        transform = transforms.Compose([
-            std_transform,
-            transform,
-        ])
+        transform = transforms.Compose([std_transform, transform])
 
     else:
         transform = std_transform
@@ -83,11 +84,38 @@ def mnist_classwise_loader(
     return train_loader, test_loader
 
 
-def combine_classes(
+def mnist_full_loader(data_dir, batch_size=64, drop_last=True):
+    """ Get loaders for the "standard" dataset
+    """
+    train_dataset = datasets.MNIST(
         data_dir,
-        training_classes,
+        download=True,
         train=True,
-        batch_size=32):
+        transform=transforms.Compose(
+            [transforms.ToTensor(), transforms.Normalize(0.0, 1.0), ]
+        ),
+    )
+
+    test_dataset = datasets.MNIST(
+        data_dir,
+        download=True,
+        train=False,
+        transform=transforms.Compose(
+            [transforms.ToTensor(), transforms.Normalize(0.0, 1.0), ]
+        ),
+    )
+
+    full_train_loader = DataLoader(
+        train_dataset, batch_size=batch_size, shuffle=True, drop_last=drop_last
+    )
+    full_test_loader = DataLoader(
+        test_dataset, batch_size=batch_size, shuffle=True, drop_last=drop_last
+    )
+
+    return full_train_loader, full_test_loader
+
+
+def combine_classes(data_dir, training_classes, train=True, batch_size=32):
     """ Create a DataLoader instance with the classes of your choice,
         for sequential learning.
         :param data_dir: Where your data live.
@@ -106,7 +134,7 @@ def combine_classes(
 
     samples_ = [data[k][0] for k in range(len(training_classes))]
     labels_ = [data[k][1] for k in range(len(training_classes))]
-    combined_samples = torch.cat(samples_)
+    combined_samples = torch.cat(samples_).unsqueeze(1)
     combined_labels = torch.cat(labels_)
     combined_dataset = list((combined_samples, combined_labels))
 

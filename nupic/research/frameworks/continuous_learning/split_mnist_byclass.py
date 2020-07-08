@@ -91,7 +91,8 @@ class MNISTSplitter(object):
 
 if __name__ == "__main__":
 
-    data_dir = "/home/ec2-user/nta/data/mnist/"
+    # data_dir = "/home/ec2-user/nta/data/mnist/"
+    data_dir = "/Users/afisher/nta/mnist/"
     splitter = MNISTSplitter(data_dir=data_dir)
     print("Splitting... ")
     splitter.split_mnist(data_dir)

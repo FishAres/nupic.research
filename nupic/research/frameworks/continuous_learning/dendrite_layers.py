@@ -30,6 +30,10 @@ from nupic.research.frameworks.continuous_learning.dend_kwinners import (
 from nupic.torch.modules import SparseWeights
 
 
+def hard_sigmoid(x):
+    return 1 / (1 + torch.exp(-3 * (x - 1)))
+
+
 class DendriteInput(nn.Module):
     """ Sparse linear layer from previous output to
     "dendrites" - this is the first part of a module
@@ -53,7 +57,8 @@ class DendriteInput(nn.Module):
         super(DendriteInput, self).__init__()
         self.threshold = threshold
         linear = nn.Linear(in_dim, n_dendrites)
-
+        # nn.init.kaiming_uniform_(linear)
+        # linear.bias.data.fill_(0.0)
         if weight_sparsity < 1:
             self.linear = SparseWeights(linear, weight_sparsity)
         else:
@@ -125,7 +130,7 @@ class DendriteLayer(nn.Module):
         out_dim,
         dendrites_per_neuron,
         weight_sparsity=0.2,
-        act_fun_type="kwinner",
+        act_fun=None,
     ):
         super(DendriteLayer, self).__init__()
 
@@ -133,7 +138,7 @@ class DendriteLayer(nn.Module):
         self.n_dendrites = out_dim * self.dendrites_per_neuron
         self.out_dim = out_dim
 
-        self.act_fun_type = act_fun_type
+        self.act_fun = act_fun
 
         self.input = DendriteInput(
             in_dim=in_dim,
@@ -142,17 +147,17 @@ class DendriteLayer(nn.Module):
         )
         self.output = DendriteOutput(out_dim, self.dendrites_per_neuron)
 
-    def forward(self, x, cat_projection=1.0):
+    def forward(self, x, act_fun=None, cat_projection=1.0):
         """ cat_proj here is an optional argument
         for a categorical "feedback" projection to
         the dendrite segments
         """
-        if self.act_fun_type == "kwinner":
+        if self.act_fun == "kwinner":
             return self.forward_kwinner(x, cat_projection)
-        elif self.act_fun_type == "sigmoid":
-            return self.forward_sigmoid(x, cat_projection)
+        elif callable(act_fun):
+            return self.forward_custom(x, act_fun, cat_projection)
         else:
-            raise AssertionError("act_fun_type must be ''kwinner'' or ''sigmoid'' ")
+            raise AssertionError("Please provide an appropriate activation function")
 
     def forward_kwinner(self, x, cat_projection=1.0):  # cat_projection = 1.0 is cleaner
         """ cat_projection is scalar categorical input
@@ -171,12 +176,28 @@ class DendriteLayer(nn.Module):
         out2 = self.output(out1_1)
         return out2
 
-    def forward_sigmoid(self, x, cat_projection=1.0):
+    def forward_custom(self, x, act_fun, cat_projection=1.0):
         out0 = self.input(x)
 
         out1_pre = out0 * cat_projection
 
-        out1 = torch.sigmoid(out1_pre)
+        out1 = act_fun(out1_pre)
 
         out2 = self.output(out1)
         return out2
+
+
+def gaussian_act(x, std=3.5):
+    pi_ = torch.Tensor([np.pi]).squeeze()
+    exp = torch.exp(-0.5 * ((x) ** 2 / std))
+    return (1 / torch.sqrt(2 * pi_)) * exp
+
+
+def lo_gaussian(x, std1=3.5, std2=5):
+    a1 = gaussian_act(x, std=std1)
+    a2 = gaussian_act(x, std=std2)
+    return a1 - a2
+
+
+def ada_fun(x):
+    return torch.max(torch.zeros(1), torch.sign(x)) * torch.exp(-x) * 2.7183
