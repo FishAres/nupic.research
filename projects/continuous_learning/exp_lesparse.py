@@ -22,18 +22,17 @@ import numpy as np
 from torch import nn
 
 from nupic.research.frameworks.continuous_learning.dendrite_layers import DendriteLayer
+# from nupic.research.frameworks.continuous_learning.exp_kwinners import (
+#     KWinners,
+#     KWinners2d,
+# )
+
 from nupic.research.frameworks.pytorch.modules import KWinners2dLocal
 from nupic.research.frameworks.pytorch.modules.consolidated_sparse_weights import (
     ConsolidatedSparseWeights,
     ConsolidatedSparseWeights2D,
 )
-from nupic.torch.modules import (
-    Flatten,
-    KWinners,
-    KWinners2d,
-    SparseWeights,
-    SparseWeights2d,
-)
+from nupic.torch.modules import Flatten, SparseWeights, SparseWeights2d, KWinners, KWinners2d
 
 # from nupic.research.frameworks.pytorch.models.le_sparse_net import (
 #     add_sparse_cnn_layer,
@@ -354,5 +353,7 @@ class LeSparseNet(nn.Sequential):
                 )
             input_size = linear_n[i]
 
+        if len(linear_n) < 2:
+            self.add_module("output", nn.Linear(input_size, num_classes))
         if use_softmax:
             self.add_module("softmax", nn.LogSoftmax(dim=1))

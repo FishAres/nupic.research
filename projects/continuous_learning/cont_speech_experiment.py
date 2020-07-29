@@ -31,6 +31,7 @@ from torch.utils.data import DataLoader
 from torchvision import transforms
 
 from exp_lesparse import LeSparseNet  # temporary LeSparseNet for experimentation
+from nupic.research.frameworks.continuous_learning.exp_kwinners import update_running_dc
 from nupic.research.frameworks.continuous_learning.utils import train_model
 from nupic.research.frameworks.pytorch.dataset_utils import PreprocessedDataset
 from nupic.research.frameworks.pytorch.model_utils import (
@@ -87,6 +88,8 @@ class ContinuousSpeechExperiment(object):
         self.validation = False
         self.load_datasets()
 
+        self.duty_cycles = []
+    
         self.running_accuracy = []
         self.combine_xy = False
         self.boost_strength = config["boost_strength"]
@@ -290,6 +293,8 @@ class ContinuousSpeechExperiment(object):
     def post_epoch(self):
         self.lr_scheduler.step()
         self.train_loader.dataset.load_next()
+        self.duty_cycles.append(self.get_duty_cycles())
+        # self.model.apply(update_running_dc)
 
     def full_post_epoch(self):
         self.lr_scheduler.step()
@@ -470,7 +475,7 @@ class ContinuousSpeechExperiment(object):
             transform=transforms.Compose(
                 [
                     self.subtract_label_transform(),
-                    transforms.Normalize(mean=0.0, std=1.0),
+                    # transforms.Normalize(mean=0.0, std=1.0),
                 ]
             ),
         )
@@ -489,7 +494,7 @@ class ContinuousSpeechExperiment(object):
             transform=transforms.Compose(
                 [
                     self.subtract_label_transform(),
-                    transforms.Normalize(mean=0.0, std=1.0),
+                    # transforms.Normalize(mean=0.0, std=1.0),
                 ]
             ),
         )
